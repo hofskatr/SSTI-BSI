@@ -1,0 +1,476 @@
+---
+title: "SSTI_BSI_figures"
+output: html_document
+date: "2023-12-11"
+---
+
+---
+title: "SSTI_BSI_figures"
+output: html_document
+date: "2023-12-11"
+---
+
+## Install Packages
+```{r}
+## Install packages 
+install.packages("tidyverse")
+install.packages("ape")
+install.packages("BiocManager")
+BiocManager::install("gtrellis")
+BiocManager::install("Biostrings")
+install.packages("RCurl")
+install.packages("gmodels")
+install.packages("cowplot")
+install.packages("janitor")
+install.packages("diffr")
+install.packages("plyr")
+install.packages("reshape2")
+install.packages("reactable")
+install.packages("data.table")
+install.packages("formattable")
+devtools::install_version('rvcheck',version='0.1.8')
+BiocManager::install("ggtree", force = TRUE)
+install.packages("glmnet", dependencies=TRUE)
+install.packages("multcomp", dependencies=TRUE)
+install.packages("fuzzySim", dependencies=TRUE)
+
+##load librarys
+library(devtools)
+library("tidyverse")
+library("ape")
+library("RCurl")
+library("epiDisplay")
+library("gmodels")
+library("cowplot")
+library("janitor")
+library("diffr")
+library("gdata")
+library("plyr")
+library("reshape2")
+library("reactable")
+library("data.table")
+library("formattable")
+library("ggtree")
+library("glmnet")
+library("multcomp")
+
+
+```
+
+## Read in Tables
+```{r}
+## Table that contains demographic data
+Full_table <- read.csv("/home/kshofst/tiramisu/III/published_tables/Full_table.csv")
+
+## distance matrix 
+III_Bregos_snp_dist_matrix <- as.matrix(read.delim("/home/kshofst/tiramisu/III/parsnp_results/New_III_Bregos/USA500/snp_disty.txt", row.names=1))
+
+## phylogenetic tree
+III_Bregos_tree <- read.tree("/home/kshofst/tiramisu/III/parsnp_results/New_III_Bregos/USA500/parsnp.fa.treefile")
+```
+
+# Clusters
+
+```{r}
+
+# III_Bregos
+III_Bregos_snp_dist_matrix <- as.matrix(read.delim("/home/kshofst/tiramisu/III/parsnp_results/New_III_Bregos/USA500/snp_disty.txt", row.names=1))
+
+##clusters for 15 snps
+# change name for as.distacnce nothing else changes
+III_Bregos_dist <- as.dist(III_Bregos_snp_dist_matrix)
+III_Bregos_clust <- hclust(III_Bregos_dist)
+plot(III_Bregos_clust)
+cutree(III_Bregos_clust,h=15) -> III_Bregos_clusters
+
+#make table of clusters
+III_Bregos_clusters <- as.data.frame(III_Bregos_clusters)
+III_Bregos_clusters <- rownames_to_column(III_Bregos_clusters)
+
+##this prints a list of clusters 
+printed_values <- numeric()
+
+#reads in each row
+for (i in 1:nrow(III_Bregos_clusters)) {
+     x <- III_Bregos_clusters$III_Bregos_clusters[i]
+ ##if theres a dulicate, this stores all the III_Bregos_clusters values for that cluster
+  if (!(x %in% printed_values)) {
+     duplicate_indices <- which(x == III_Bregos_clusters$III_Bregos_clusters)
+  ##prints the column rowname that contains the smapleIdS for each member of a cluster
+   if (length(duplicate_indices) > 1) {
+      cat("Cluster:", x, "\n")
+      cat("Sample Ids:", III_Bregos_clusters$rowname[duplicate_indices], "\n")
+      cat("\n")
+    }
+    
+    printed_values <- c(printed_values, x)
+  }
+}
+      
+
+#save a csv file in excel - I renumbered the clusters 1-16 
+
+
+```
+
+# Cophenetic graphs Supplemental 1 
+```{r}
+
+# read in snp dist matrix 
+III_Bregos_snp_dist_matrix <- as.matrix(read.delim("/home/kshofst/tiramisu/III/parsnp_results/New_III_Bregos/USA500/snp_disty.txt", row.names=1))
+
+III_Bregos_disty_dataframe <- as.data.frame(III_Bregos_snp_dist_matrix) %>% dplyr::select(sort(names(.)))
+
+III_Bregos_disty_dataframe <- III_Bregos_disty_dataframe[order(rownames(III_Bregos_disty_dataframe)),]
+#makes the matrix into a vector for the plot
+III_Bregos_disvec <- as.vector(as.dist(III_Bregos_disty_dataframe)) 
+# read in tree
+III_Bregos_tree <- read.tree("/home/kshofst/tiramisu/III/parsnp_results/New_III_Bregos/USA500/parsnp.fa.treefile")
+#Turn tree into a cophenetic phylogenic object/df and then orders the matrix
+III_Bregos_treevec <- as.data.frame(as.matrix(as.dist(cophenetic.phylo(III_Bregos_tree)))) %>% dplyr::select(sort(names(.)))
+
+III_Bregos_treevec <- III_Bregos_treevec[order(rownames(III_Bregos_treevec)),]
+#Creates a vector as input for the plot
+III_Bregos_treevec <- as.vector(as.dist(III_Bregos_treevec))
+#Linear plot
+plot(III_Bregos_disvec, III_Bregos_treevec, xlab="original pairwise distances", ylab="pairwise distances on the tree", pch=20,  cex=2)
+
+##get correlation value
+cor(III_Bregos_disvec,III_Bregos_treevec)^2
+```
+
+## Bar graphs - Figure 1 
+```{r}
+## Figure 1A
+##pull only SSTIs
+III_list <- dplyr::filter(Full_table, grepl('SSTI', parent_sample_type))
+## CC by type SSTI
+III_list %>% dplyr::select(type, cc) -> III_opp_fancy
+g = data.frame(III_opp_fancy %>% group_by(III_opp_fancy$type, III_opp_fancy$cc) %>% dplyr::summarize(count=n()))
+colnames(g) <- c("Index_Type", "CC", "count")
+g$count <- as.numeric(g$count)
+g$`Index_Type` <- as.character(g$`Index_Type`)
+g$CC <- as.character(g$CC)
+g %>% dplyr::arrange(desc(count)) -> h 
+cols1 = c("palegreen", "chocolate2", "white", "khaki", "lightblue3", "darkorchid1", "midnightblue", "cyan", "red1", "blue1", "forestgreen", "deepskyblue", "gold", "hotpink", "darkred")
+names(cols1) = c("CC8", "CC5", "NA", "CC1", "CC59", "CC398", "CC45", "CC22", "CC6", "CC71", "CC72", "CC6", "CC78", "CC30", "ST87")
+A_plot_fig1 <- ggplot(h, aes(x=factor(Index_Type, levels = c("Abscess", "Surgical Site Infection", "Infected Wounds", "Cellulitis", "Folliculitis", "Pustule", "Impetigo", "Cyst", "Otis Externa", "Paronychia", "Pyomyositis", "Tenosynovitis")), fill = CC, (x=reorder(Index_Type, -count)), y=count)) + geom_bar(position="stack", stat="identity") + theme(axis.text.x = element_text(face = "bold", angle = 45, size = 12, vjust = 1, hjust=1)) + theme(axis.text.y = element_text(face = "bold")) + scale_fill_manual(values = cols1) + xlab("Infection Type \n SSTI") + ylab("Number") + theme(axis.title.x = element_text(color="black", size=12, face="bold")) + theme(axis.title.y = element_text(color="black", size=12, face="bold")) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black"))
+
+##Figure 1B
+##pull only BSIs
+Bregos_list <- dplyr::filter(Full_table, grepl('Blood', parent_sample_type))
+## CC by type BSI
+Bregos_list %>% dplyr::select(Suspected.source.of.bacteremia, cc) -> III_opp_fancy
+g = data.frame(III_opp_fancy %>% group_by(III_opp_fancy$Suspected.source.of.bacteremia, III_opp_fancy$cc) %>% dplyr::summarize(count=n()))
+colnames(g) <- c("Index_Type", "CC", "count")
+g$count <- as.numeric(g$count)
+g$`Index_Type` <- as.character(g$`Index_Type`)
+g$CC <- as.character(g$CC)
+g %>% dplyr::arrange(desc(count)) -> h 
+B_plot_fig1 <- ggplot(h, aes(x=factor(Index_Type, levels = c("Unknown", "Skin site", "Central venous catheter infection", "Surgical site", "Other", "Device infection", "Arteriovenous Graft", "Respiratory source", "Urinary source")),fill = CC, (x=reorder(Index_Type, -count)), y=count)) + geom_bar(position="stack", stat="identity") + theme(axis.text.x = element_text(face = "bold", angle = 45, size = 12, vjust = 1, hjust=1)) + theme(axis.text.y = element_text(face = "bold")) + scale_fill_manual(values = cols1) + xlab("Infection Type \n BSI") + ylab("Number") + theme(axis.title.x = element_text(color="black", size=12, face="bold")) + theme(axis.title.y = element_text(color="black", size=12, face="bold")) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black"))
+
+##Figure 1C
+##CC8 and CC5 for SSTI and Blood 
+Full_table %>% dplyr::select(parent_sample_type, cc) -> CC_table_short 
+
+g <- data.frame(CC_table_short %>% group_by(CC_table_short$`parent_sample_type`, CC_table_short$'cc') %>% dplyr::summarize(count=n()))
+
+g[is.na(g)] <- "NA"
+g %>% mutate(type = case_when(CC_table_short.cc == "CC8" ~ "CC8", CC_table_short.cc  == "CC5" ~ "CC5", CC_table_short.cc == "CC72" ~ "CC72",  CC_table_short.cc == "CC30" ~ "CC30", CC_table_short.cc == "CC78" ~ "CC78", CC_table_short.cc  == "" ~ "other",   CC_table_short.cc  == "CC1" ~ "other", CC_table_short.cc == "CC22" ~ "other", CC_table_short.cc  == "CC398" ~ "other",  
+CC_table_short.cc == "CC45" ~ "other", CC_table_short.cc == "CC59" ~ "other", CC_table_short.cc == "CC6" ~ "other", CC_table_short.cc == "CC71" ~ "other")) -> k 
+k %>% dplyr::select("CC_table_short.parent_sample_type", "type", "count" ) -> m
+colnames(m) <- c("Sample_Type", "Clonal_Complex", "count")
+m %>% mutate(type = case_when(Sample_Type == "Blood" ~ "BSI", Sample_Type == "SSTI" ~ "SSTI" )) -> h
+h %>% dplyr::select("type", "Clonal_Complex", "count" ) -> m
+colnames(m) <- c("Sample_Type", "CC", "count")
+##remove na's caused from reference files 
+p <- na.omit(m)
+p$count <- as.numeric(p$count)
+p$Sample_Type <- as.character(p$Sample_Type)
+p$CC <- as.character(p$CC)
+p %>% dplyr::arrange(desc(count)) -> h 
+
+C_plot_fig1 <- ggplot(h, aes(fill = CC, (x=reorder(Sample_Type, -count)), y=count)) + geom_bar(position="stack", stat="identity") + theme(axis.text.x = element_text(face = "bold", angle = 45, size = 12, vjust = 1, hjust=1)) + theme(axis.text.y = element_text(face = "bold")) + scale_fill_manual(values = cols1) + xlab("Sample Type") + ylab("Number") + theme(axis.title.x = element_text(color="black", size=12, face="bold")) + theme(axis.title.y = element_text(color="black", size=12, face="bold")) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black"))
+
+#Paper figure 
+
+plot_grid(NULL, A_plot_fig1, NULL, B_plot_fig1, NULL, C_plot_fig1, NULL, nrow = 1, rel_widths = c(3, 10, 1, 10, 2, 10, 1), labels = c('', 'A', '','B', '','C', ''), align = 'h')
+```
+
+## bar graph Age - Supplemental figure 2 
+```{r}
+##supplemental ages
+Full_table %>% dplyr::select(Age_bind, parent_sample_type) -> Age_Type
+Age_Type %>% mutate(type = case_when(parent_sample_type == "Blood" ~ "BSI", parent_sample_type == "SSTI" ~ "SSTI" )) -> Age_Type
+
+      p = data.frame(Age_Type %>% group_by(Age_Type$Age, Age_Type$type) %>% dplyr::summarize(count=n()))
+      colnames(p) <- c("Age", "Sample_Type", "count")
+      ##remove na's caused from reference files 
+      m <- na.omit(p)
+      
+     
+ggplot(m, aes(x=factor(Age, levels = c("18-20", "20-25", "25-30","30-35", "35-40","40-45", "45-50", "50-55", "55-60", "60-65", "65-70", "70-75", "75-80", "80-85", "85-90", "90-95", "95-100", "100-105")),fill = Sample_Type, (x=reorder(Age, -count)), y=count)) + geom_bar(position="stack", stat="identity") + theme(axis.text.x = element_text(face = "bold", angle = 45, size = 12, vjust = 1, hjust=1)) + theme(axis.text.y = element_text(face = "bold")) + scale_fill_brewer(palette = "Set3") + xlab("Age") + ylab("Number") + theme(axis.title.x = element_text(color="black", size=12, face="bold")) + theme(axis.title.y = element_text(color="black", size=12, face="bold")) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black"))
+
+```
+
+## Phylogentic tree - Figure 2
+```{r}
+III_Bregos_par_tree_unroot <- read.tree("/Users/hofskatr/OneDrive - Emory University/III/parsnp_results/New_III_Bregos/USA500/parsnp.fa.treefile") 
+
+III_Bregos_par_tree <- root(III_Bregos_par_tree_unroot, outgroup ="GCF_000144955.1_ASM14495v1_genomic.fna", resolve_root = TRUE)
+
+## read in table with demographics
+full_table <- ()
+
+# pull the tip lables (parsnp tips are S.XXXXXX.XXXXX.fna)
+III_Bregos_parsnp_tips <- as.data.frame(III_Bregos_par_tree$tip.label)
+colnames(III_Bregos_parsnp_tips) <- c("SampleID")
+#parsnp adapattion
+III_Bregos_parsnp_tips %>% separate(SampleID, c("SampleID", "tmp"), sep = ".fna")  -> III_Bregos_parsnp_tips_tmp
+III_Bregos_parsnp_tips_tmp %>% dplyr::select(SampleID) -> III_Bregos_parsnp_tips_2
+remove(III_Bregos_parsnp_tips_tmp, III_Bregos_parsnp_tips)
+#Join Tips and Table
+Full_temp_heatmap <- left_join(III_Bregos_parsnp_tips_2, Full_table)
+# Select columns from table to use for heatmap
+
+Full_temp_heatmap %>% dplyr::select(SampleID, BREGOS, cc, agr_group, USA_id) -> Full_heatmap 
+
+##add .fna to sampleID so they match tree labels 
+paste0(Full_heatmap$SampleID, ".fna") -> SampleID.fna
+Full_heatmap <- cbind(Full_heatmap, SampleID.fna)
+
+Full_heatmap["SampleID.fna"][Full_heatmap["SampleID.fna"] == "GCF_022226995.1_ASM2222699v1_no_plasmids.fna"] <- "GCF_022226995.1_ASM2222699v1_no_plasmids.fna.ref"
+
+#removed columns win old sampleIds 
+Full_heatmap %>% dplyr::select(SampleID.fna, cc, BREGOS, agr_group, USA_id) -> Full_heatmap
+colnames(Full_heatmap) <- c("SampleID_tips", "Clonal Cluster", "BSI",  "Agr group", "USA300/USA500") 
+
+### remove row names
+rownames(Full_heatmap) <- Full_heatmap[,1]
+Full_heatmap[,1] <- NULL
+
+Full_heatmap[is.na(Full_heatmap)] <- "NA"
+
+
+#set colors up for heatmap
+cols1 = c("palegreen", "chocolate2", "khaki", "lightblue3", "darkorchid1", "midnightblue", "cyan", "red1", "blue1", "forestgreen", "deepskyblue", "gold", "hotpink", "darkred", "gray90", "black", "gray80" )
+names(cols1) = c("CC8", "CC5", "CC1", "CC59", "CC398", "CC45", "CC22", "CC6", "CC71", "CC72", "CC6", "CC78", "CC30", "ST87", "USA300 Reference", "ST93 Reference", "USA500 Reference")
+
+cols2 = c("gray75", "red")
+names(cols2) = c("no", "yes")
+
+cols5 = c("red", "blue", "yellow")
+names(cols5) = c("gp1", "gp2", "gp3")
+
+cols6 = c("darkgreen", "blue", "white")
+names(cols6) = c("USA300", "USA500", "NA")
+
+
+traitscols <- c(cols1, cols2, cols5, cols6)
+
+
+# get legends for each row of the heatmap
+
+III_Bregos_parsnp_plot <- ggtree(III_Bregos_par_tree, layout = "circular") + geom_nodepoint() + geom_tippoint() 
+rotate_tree(III_Bregos_parsnp_plot, 180 ) -> III_Bregos_parsnp_plot
+
+III_Bregos_heatmap_plot <- gheatmap(p = III_Bregos_parsnp_plot, data = Full_heatmap, offset = 0.001, width = 0.5, colnames_position = "top", colnames_angle = 45) + guides(color = guide_legend(override.aes = list(size = 3))) + scale_fill_manual(values = cols1, name = "Clonal Complex") + theme(legend.position = "bottom", legend.justification = "center") 
+
+III_Bregos_CC_leg <- get_legend(III_Bregos_heatmap_plot + theme(legend.position = c(0.01, 0.82), legend.direction = "horizontal", legend.justification="left" ,legend.box.just = "top") + theme(legend.text = element_text(colour="black", size=12) + theme(legend.title = element_text(colour = "blue", size = 10, face="bold"))))
+
+III_Bregos_heatmap_plot <- gheatmap(p = III_Bregos_parsnp_plot, data = Full_heatmap, offset = 0.001, width = 0.5, colnames_position = "top", colnames_angle = 45) + guides(color = guide_legend(override.aes = list(size = 3))) + scale_fill_manual(values = cols2, name = "Bacteremia") + theme(legend.position = "bottom", legend.justification = "center") 
+
+III_Bregos_Bregos_leg <-  get_legend(III_Bregos_heatmap_plot + theme(legend.position = c(0.4, 0.84), legend.direction = "horizontal", legend.justification="top" ,legend.box.just = "top") + theme(legend.text = element_text(colour="black", size=12) + theme(legend.title = element_text(colour = "blue", size = 10, face="bold"))))
+
+III_Bregos_heatmap_plot <- gheatmap(p = III_Bregos_parsnp_plot, data = Full_heatmap, offset = 0.001, width = 0.5, colnames_position = "top", colnames_angle = 45) + guides(color = guide_legend(override.aes = list(size = 3))) + scale_fill_manual(values = cols5, name = "agr group") + theme(legend.position = "bottom", legend.justification = "center") 
+
+III_Bregos_Clusters_agr_leg <- get_legend(III_Bregos_heatmap_plot + theme(legend.position=c(0.1, 0.84), legend.direction = "horizontal", legend.justification="top" ,legend.box.just = "top") + theme(legend.text = element_text(colour="black", size=12) + theme(legend.title = element_text(colour = "blue", size = 10, face="bold"))))
+
+III_Bregos_heatmap_plot <- gheatmap(p = III_Bregos_parsnp_plot, data = Full_heatmap, offset = 0.001, width = 0.5, colnames_position = "top", colnames_angle = 45) + guides(color = guide_legend(override.aes = list(size = 3))) + scale_fill_manual(values = cols6, name = "USA300/USA500") + theme(legend.position = "bottom", legend.justification = "center") 
+
+III_Bregos_Clusters_USA300_leg <- get_legend(III_Bregos_heatmap_plot + theme(legend.position=c(0.0001,0.84), legend.direction = "horizontal", legend.justification="top" ,legend.box.just = "top") + theme(legend.text = element_text(colour="black", size=12) + theme(legend.title = element_text(colour = "blue", size = 10, face="bold"))))
+
+
+III_Bregos_heatmap_plot <- gheatmap(p = III_Bregos_parsnp_plot, data = Full_heatmap, offset = 0.001, width = 0.5, colnames_position = "top", colnames_angle = 20, hjust = 1, font.size = 6, colnames_offset_y =5, colnames_offset_x = 0.00009) + geom_treescale(fontsize = 3, offset.label = -20.0, offset = -20) + guides(color = guide_legend(override.aes = list(size = 3))) + scale_fill_manual(values = traitscols, name = "traits") + theme(legend.position = "none") + ylim(0, 350)
+
+
+Full_tree <- plot_grid(III_Bregos_heatmap_plot) 
+
+Full_tree_led <- plot_grid(III_Bregos_CC_leg, III_Bregos_Bregos_leg, III_Bregos_Clusters_agr_leg, III_Bregos_Clusters_USA300_leg, nrow =1, rel_widths = c(1,1,1,1))
+
+
+Panel_A <- plot_grid(Full_tree, Full_tree_led, NULL, nrow =3, rel_heights = c(20,1,1), labels = c('A'))
+
+## Tree Subsets 
+
+## add heatmap to plots 
+### CC8 
+III_Bregos_par_tree_unroot <- read.tree("/Users/hofskatr/OneDrive - Emory University/III/parsnp_results/New_III_Bregos/USA500/parsnp.fa.treefile")
+
+III_Bregos_par_tree <- root(III_Bregos_par_tree_unroot, outgroup ="GCF_000144955.1_ASM14495v1_genomic.fna", resolve_root = TRUE)
+
+##find node that contains all of the CC8 branch (tree names were found by visulizing on Itol Tree)
+MRCA(III_Bregos_par_tree, "S.190723.00185.fna", "S.190725.00087.fna")
+III_Bregos_CC8_tree <- tree_subset(III_Bregos_par_tree, node = 291, levels=0)
+# pull the tip lables (parsnp tips are S.XXXXXX.XXXXX.fna)
+temp_tips <- as.data.frame(III_Bregos_CC8_tree$tip.label)
+colnames(temp_tips) <- c("SampleID")
+#parsnp adapataion
+temp_tips %>% separate(SampleID, c("SampleID", "tmp"), sep = ".fna")  -> temp_tips_tmp
+temp_tips_tmp %>% dplyr::select(SampleID) -> temp_tips_2
+remove(temp_tips_tmp, temp_tips)
+#Join Tips and Table
+Full_temp_heatmap <- left_join(temp_tips_2, Full_table)
+##tiplable table
+cluster_table_tips <- read.csv("/Users/hofskatr/hofstetterkatrina@gmail.com - Google Drive/My Drive/SEMAPHORE-Desktop/cluster_table_tiplabels.csv")
+cluster_table <- left_join(temp_tips_2, cluster_table_tips)
+paste0(cluster_table$SampleID, ".fna") -> SampleID.fna
+Cluster_table_tmp <- cbind(cluster_table, SampleID.fna)
+Cluster_table_tmp %>% dplyr::select(SampleID.fna, Cluster_number, Cluster_ID) -> Cluster_table_final
+# Select columns from table to use for heatmap
+Full_temp_heatmap %>% dplyr::select(SampleID, BREGOS, cc, USA_id, III.clusters, III.Bregos.clusters, Bregos.clusters) -> Full_heatmap 
+#make sampleIds match the tree branch names
+paste0(Full_heatmap$SampleID, ".fna") -> SampleID.fna
+Full_heatmap <- cbind(Full_heatmap, SampleID.fna)
+
+Full_heatmap["SampleID.fna"][Full_heatmap["SampleID.fna"] == "GCF_022226995.1_ASM2222699v1_no_plasmids.fna"] <- "GCF_022226995.1_ASM2222699v1_no_plasmids.fna.ref"
+
+##remove column with old sampleIds
+Full_heatmap %>% dplyr::select(SampleID.fna, USA_id, BREGOS)  -> Full_heatmap
+colnames(Full_heatmap) <- c("SampleID_tips", "USA300/500", "BSI")
+                    
+### remove row names
+rownames(Full_heatmap) <- Full_heatmap[,1]
+Full_heatmap[,1] <- NULL
+
+Full_heatmap[is.na(Full_heatmap)] <- "NA"
+
+#set colors for heatmap 
+cols2 = c("gray75", "red", "gray90", "gray80")
+names(cols2) = c("no", "yes", "USA300 Reference","USA500 Reference" )
+
+cols3 = c("white", "darkgreen", "blue", "gray90", "gray80")
+names(cols3) = c("NA", "USA300", "USA500", "USA300 Reference","USA500 Reference" )
+
+traitscols <- c(cols2, cols3) 
+
+
+#basic plot
+## get legends
+
+CC8_parsnp_plot <- ggtree(III_Bregos_CC8_tree) + geom_nodepoint() 
+
+CC8_with_tips <- CC8_parsnp_plot %<+% Cluster_table_final + geom_tippoint(aes(color = factor(Cluster_number), shape = Cluster_ID), size = 3) + scale_color_manual(values=c("burlywood", "cadetblue", "brown", "coral", "cornflowerblue", "cornsilk4", "darkorange2", "darkgreen", "darkviolet", "darkred", "blue3", "navy", "rosybrown2", "steelblue1", "orange2", "purple1"), na.translate=FALSE)
+
+CC8_tips_lab <- get_legend(CC8_with_tips + theme(legend.position= c(0.5, 0.8), legend.direction = "vertical", legend.justification="top" ,legend.box.just = "top") + theme(legend.text = element_text(colour="black", size=12) + theme(legend.title = element_text(colour = "blue", size = 10, face="bold"))))
+
+CC8_heatmap_plot <- gheatmap(p = CC8_parsnp_plot, data = Full_heatmap, offset = 0.00001, width = 0.5, colnames_position = "top", colnames_angle = 45) + guides(color = guide_legend(override.aes = list(size = 3))) + scale_fill_manual(values = cols2, name = "Bacteremia")
+
+CC8_Bregos_leg <-  get_legend(CC8_heatmap_plot + theme(legend.position= c(0.6, 0.4), legend.direction = "vertical", legend.justification="top" ,legend.box.just = "top") + theme(legend.text = element_text(colour="black", size=12) + theme(legend.title = element_text(colour = "blue", size = 10, face="bold"))))
+
+CC8_heatmap_plot <- gheatmap(p = CC8_parsnp_plot, data = Full_heatmap, offset = 0.00001, width = 0.5, colnames_position = "top", colnames_angle = 45) + guides(color = guide_legend(override.aes = list(size = 3))) + scale_fill_manual(values = cols3, name = "USA300 USA500")
+
+CC8_USA_leg <- get_legend(CC8_heatmap_plot + theme(legend.position= c(0.8, 1.2), legend.direction = "vertical", legend.justification="top" ,legend.box.just = "top") + theme(legend.text = element_text(colour="black", size=12) + theme(legend.title = element_text(colour = "blue", size = 10, face="bold"))))
+
+CC8_plot <- gheatmap(p = CC8_with_tips, data = Full_heatmap, offset = 0.00001, width = 0.075, colnames_position = "top", colnames_angle = 60, hjust = 0, font.size = 5, colnames_offset_y = 2, colnames_offset_x = 0.000000007) + geom_treescale(fontsize = 3, label = "CC8", offset.label = -12.0, offset = -10) + guides(color = guide_legend(override.aes = list(size = 3))) + scale_fill_manual(values = traitscols, name = "traits") + theme(legend.position = "none") + ylim(-20, 220) 
+
+legends_1 <- plot_grid(CC8_Bregos_leg, CC8_Bregos_leg, CC8_USA_leg, ncol = 1)
+
+CC8_tree_plot <- plot_grid(CC8_plot, NULL, CC8_tips_lab, NULL, ncol =4 , rel_widths = c(25,2,1,1), labels = c('B'))
+
+
+
+##CC5 branch
+
+III_Bregos_par_tree_unroot <- read.tree("/Users/hofskatr/OneDrive - Emory University/III/parsnp_results/New_III_Bregos/USA500/parsnp.fa.treefile")
+
+III_Bregos_par_tree <- root(III_Bregos_par_tree_unroot, outgroup ="GCF_000144955.1_ASM14495v1_genomic.fna", resolve_root = TRUE)
+##find node that contains all of the CC8 branch (tree names were found by visulizing on Itol Tree)
+MRCA(III_Bregos_par_tree, "S.210310.02557.fna", "S.190731.00847.fna") 
+III_Bregos_CC5_tree <- tree_subset(III_Bregos_par_tree, node = 312, levels=0)
+
+
+#pull the tip lables (parsnp tips are S.XXXXXX.XXXXX.fna)
+temp_tips <- as.data.frame(III_Bregos_CC5_tree$tip.label)
+colnames(temp_tips) <- c("SampleID")
+#parsnp adapattion
+temp_tips %>% separate(SampleID, c("SampleID", "tmp"), sep = ".fna")  -> temp_tips_tmp
+temp_tips_tmp %>% dplyr::select(SampleID) -> temp_tips_2
+remove(temp_tips_tmp, temp_tips)
+#Join Tips and Table
+Full_temp_heatmap <- left_join(temp_tips_2, Full_table)
+
+##tiplable table
+cluster_table_tips <- read.csv("/Users/hofskatr/hofstetterkatrina@gmail.com - Google Drive/My Drive/SEMAPHORE-Desktop/cluster_table_tiplabels.csv")
+
+cluster_table <- left_join(temp_tips_2, cluster_table_tips)
+
+paste0(cluster_table$SampleID, ".fna") -> SampleID.fna
+Cluster_table_tmp <- cbind(cluster_table, SampleID.fna)
+
+Cluster_table_tmp %>% dplyr::select(SampleID.fna, Cluster_number, Cluster_ID) -> Cluster_table_final
+
+# Select columns from table to use for heatmap
+Full_temp_heatmap %>% dplyr::select(SampleID, BREGOS) -> Full_heatmap 
+
+#( meca, I, II, III, IV, V, VI, VII, VIII, Ia, IIa, IIb, IIIa, IVa, IVb, IVc, IVd, IVg, IVh,)
+paste0(Full_heatmap$SampleID, ".fna") -> SampleID.fna
+Full_heatmap <- cbind(Full_heatmap, SampleID.fna)
+
+Full_heatmap %>% dplyr::select(SampleID.fna, BREGOS) -> Full_heatmap
+
+Full_heatmap["SampleID.fna"][Full_heatmap["SampleID.fna"] == "GCF_022226995.1_ASM2222699v1_no_plasmids.fna"] <- "GCF_022226995.1_ASM2222699v1_no_plasmids.fna.ref"
+# Type  meca, II, IV, Ia, IIa, IVa, IVb, IVg
+#change sampleId name 
+colnames(Full_heatmap) <- c("SampleID_tips", "BSI") 
+# spa type, "mecA", "sccMecII", "sccMecIV","sccMecIa", "sccMecIIa", "sccMecIVa", "sccMecIVb", "sccMecIVg",
+                              
+#Full_III_parsnp_invasive_infection[-c(124, 67),] -> Full_III_parsnp_invasive_infection                    
+### remove row names
+rownames(Full_heatmap) <- Full_heatmap[,1]
+Full_heatmap[,1] <- NULL
+
+Full_heatmap[is.na(Full_heatmap)] <- "NA"
+
+
+
+cols2 = c("gray75", "red", "gray90", "gray80")
+names(cols2) = c("no", "yes", "USA300 Reference","USA500 Reference" )
+
+
+traitscols <- c(cols2)
+
+#basic plot 
+
+CC5_parsnp_plot <- ggtree(III_Bregos_CC5_tree) + geom_nodepoint()
+
+
+CC5_with_tips <- CC5_parsnp_plot %<+% Cluster_table_final + geom_tippoint(aes(color = factor(Cluster_number), shape = Cluster_ID), size = 3) + scale_color_manual(values=c("burlywood", "cadetblue", "brown", "coral", "cornflowerblue", "cornsilk4", "darkorange2", "darkgreen", "darkviolet", "darkred", "blue3", "navy", "rosybrown2", "steelblue1", "orange2", "purple1"), na.translate=FALSE) 
+
+CC5_tips_lab <- get_legend(CC5_with_tips + theme(legend.position= c(0.5, 0.8), legend.direction = "vertical", legend.justification="top" ,legend.box.just = "top") + theme(legend.text = element_text(colour="black", size=12) + theme(legend.title = element_text(colour = "blue", size = 10, face="bold"))))
+
+
+CC5_heatmap_plot <- gheatmap(p = CC5_parsnp_plot, data = Full_heatmap, offset = 0.00001, width = 0.5, colnames_position = "top", colnames_angle = 45) + guides(color = guide_legend(override.aes = list(size = 3))) + scale_fill_manual(values = cols2, name = "Bacteremia")
+
+
+CC5_Bregos_leg <-  get_legend(CC5_heatmap_plot + theme(legend.position= c(0.6, 0.4), legend.direction = "vertical", legend.justification="top" ,legend.box.just = "top") + theme(legend.text = element_text(colour="black", size=12) + theme(legend.title = element_text(colour = "blue", size = 10, face="bold"))))
+
+
+
+
+
+CC5_plot <- gheatmap(p = CC5_with_tips, data = Full_heatmap, offset = 0.0001, width = 0.075, colnames_position = "top", colnames_angle = 60, hjust = 0, font.size = 5, colnames_offset_y = 2, colnames_offset_x = 0.00000007) + geom_treescale(fontsize = 3, label = "CC5", offset.label = -12.0, offset = -10) + guides(color = guide_legend(override.aes = list(size = 3))) + scale_fill_manual(values = cols2, name = "traits") + theme(legend.position = "none") + ylim(-15, 80) 
+
+legends_1 <- plot_grid(CC5_Bregos_leg, CC5_II_leg, CC5_HACO_leg, ncol = 1)
+
+
+CC5_tree_plot <- plot_grid(CC5_plot, NULL, CC5_tips_lab, NULL, ncol =4 , rel_widths = c(25,5,1,1), labels = c('C'))
+
+Tree_subsets <- plot_grid(CC8_tree_plot, NULL, CC5_tree_plot, NULL,  nrow = 1, rel_widths = c(5, 1,3,1))
+
+
+plot_grid(Panel_A, Tree_subsets, nrow = 2, rel_widths = c(1,1))
+```
+
+
+
