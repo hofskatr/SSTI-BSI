@@ -72,7 +72,7 @@ III_Bregos_tree <- read.tree("/home/kshofst/tiramisu/III/parsnp_results/New_III_
 # Clusters
 
 ```{r}
-
+#This will find samples that are within 15 snps of eachother. 
 # III_Bregos
 III_Bregos_snp_dist_matrix <- as.matrix(read.delim("/home/kshofst/tiramisu/III/parsnp_results/New_III_Bregos/USA500/snp_disty.txt", row.names=1))
 
@@ -115,7 +115,7 @@ for (i in 1:nrow(III_Bregos_clusters)) {
 
 # Cophenetic graphs Supplemental 1 
 ```{r}
-
+#Use to confirm that the tree pairwise distances on the tree and snp distance matrix are the same. 
 # read in snp dist matrix 
 III_Bregos_snp_dist_matrix <- as.matrix(read.delim("/home/kshofst/tiramisu/III/parsnp_results/New_III_Bregos/USA500/snp_disty.txt", row.names=1))
 
